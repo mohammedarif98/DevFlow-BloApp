@@ -6,7 +6,7 @@ import { generateOTP } from "../utils/generateOTP.js";
 import sendMail from "../utils/sendEmail.js";
 
 
-
+// --------------- User Registration ----------------
 export const registerUser = catchAsync(async (req, res, next) => {
     const { username,email,password,confirmPassword } = req.body;
 
@@ -42,8 +42,7 @@ export const registerUser = catchAsync(async (req, res, next) => {
 });
 
 
-
-
+// ---------------- email OTP Verification --------------------
 export const verifyOTP = catchAsync( async (req, res, next) => {
     const { otp } = req.body;
 
@@ -65,5 +64,43 @@ export const verifyOTP = catchAsync( async (req, res, next) => {
     res.status(200).json({
         status: 'success',
         message: 'Email verified successfully!',
+    });
+});
+
+
+
+// ------------------ Resend email OTP -----------------
+export const resendOTP = catchAsync(async (req, res, next) => {
+    const { email } = req.body;
+
+    if (!email) return next(new AppError("Email is required!", 400));
+
+    const user = await User.findOne({ email });
+    if (!user) return next(new AppError("User not found.", 404));
+
+    const existingOTP = await OTP.findOne({ userId: user._id });
+    if (existingOTP && existingOTP.otpExpires > Date.now()) return next(new AppError("OTP has not yet expired. Please check your email for the current OTP.", 400));
+
+    const otp = generateOTP();
+    const otpExpires = Date.now() + 5 * 60 * 1000; 
+
+    // Create or update the OTP record
+    if (existingOTP) {
+        existingOTP.otp = otp;
+        existingOTP.otpExpires = otpExpires;
+        await existingOTP.save();
+    } else {
+        await OTP.create({
+            userId: user._id,
+            otp,
+            otpExpires,
+        });
+    }
+
+    await sendMail(email, 'New OTP for Email Verification', `<h1>Your new OTP is: ${otp}</h1>`);
+
+    res.status(200).json({
+        status: 'success',
+        message: 'New OTP has been sent to your email.',
     });
 });
