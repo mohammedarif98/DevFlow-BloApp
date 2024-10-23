@@ -12,7 +12,7 @@ import globalErrorHandler from "../error/globalErrorHandler.js";
 //   }
 
 
-export function AppError(message, statusCode) {
+function AppError(message, statusCode) {
     const error = new Error(message);  // Create an error object with the message
     
     error.statusCode = statusCode;
@@ -25,3 +25,5 @@ export function AppError(message, statusCode) {
     return error;  
   }
   
+
+  export default AppError;
