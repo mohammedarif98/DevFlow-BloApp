@@ -43,3 +43,27 @@ export const registerUser = catchAsync(async (req, res, next) => {
 
 
 
+
+export const verifyOTP = catchAsync( async (req, res, next) => {
+    const { otp } = req.body;
+
+    if( !otp ) return next(new AppError("OTP is required! please fill OTP",400));
+
+    const findOTP = await OTP.findOne({ otp, otpExpires: { $gt: Date.now() }});
+    
+    if(!findOTP) return next(new AppError("Invalid or expired OTP", 400));
+
+    const user = await User.findById( findOTP.userId );
+    if (!user) return next(new AppError("User not found.", 404));
+    
+    user.isVerified = true;             
+    await user.save({ validateBeforeSave: false });
+
+    // Clear the OTP data from the database after successful verification
+    await OTP.findByIdAndDelete( findOTP._id );
+   
+    res.status(200).json({
+        status: 'success',
+        message: 'Email verified successfully!',
+    });
+});
