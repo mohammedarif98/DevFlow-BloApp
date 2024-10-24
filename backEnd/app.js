@@ -12,7 +12,7 @@ import AppError from "./utils/appError.js";
 const app = express();
 
 // app.use(cors(*));
-// app.use(cookieParser());
+app.use(cookieParser());
 app.use(express.json({limit: "10kb"}));        //------- Middleware to parse JSON requests with a limit ----- ---
 app.use(express.urlencoded({ extended: true }));
 app.use(logger('dev'));

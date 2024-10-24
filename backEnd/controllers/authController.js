@@ -6,6 +6,8 @@ import { generateOTP } from "../utils/generateOTP.js";
 import sendMail from "../utils/sendEmail.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt.js";
 import comparePassword from '../utils/comparePassword.js'; 
+import jwt from "jsonwebtoken";
+
 
 
 // --------------- User Registration ----------------
@@ -126,9 +128,8 @@ export const loginUser = catchAsync( async (req, res, next) => {
     const accessToken = generateAccessToken( user._id );
     const refreshToken =  generateRefreshToken( user._id );
 
-    const accessTokenCookieOptions = {
-        // expires: new Date( Date.now() + 15 * 60 * 1000 ), 
-        expires: new Date(Date.now() + 1 * 60 * 1000), // 1 minute
+    const accessTokenCookieOptions = {  
+        expires: new Date( Date.now() + 15 * 60 * 1000 ), 
         httpOnly: true,
         secure: process.env.NODE_ENV === "production", 
         sameSite: process.env.NODE_ENV === "production" ? "none" : "Lax", 
@@ -163,6 +164,7 @@ export const loginUser = catchAsync( async (req, res, next) => {
 
 // ------------------ User Logout -------------------
 export const logoutUser = catchAsync(async (req, res, next) => {
+    console.log("================",req.cookies);
     res.clearCookie("access-token", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -174,7 +176,8 @@ export const logoutUser = catchAsync(async (req, res, next) => {
         secure: process.env.NODE_ENV === "production",
         sameSite: process.env.NODE_ENV === "production" ? "none" : "Lax",
     });
-
+    
+    console.log("-----------------",req.cookies);
     return res.status( 200 ).json({
         status: "success",
         message: "Logout successful",
@@ -182,7 +185,40 @@ export const logoutUser = catchAsync(async (req, res, next) => {
 });
 
 
-// ------------------  -------------------
+// ------------------ refresh the access token -------------------
+export const refreshAccessToken = catchAsync(async (req, res, next) => {
+    
+    const refreshToken = req.cookies['refresh-token'];
+    if (!refreshToken) return next(new AppError("Refresh token is missing", 403));
+    try {
+        // console.log("Refresh Token: ", refreshToken);
+        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_TOKEN_SECRET_KEY);
+      
+        const user = await User.findById(decoded.id).select('-password');                                   // Check if user still exists
+        if (!user) return next(new AppError("User not found", 401));
+    
+        const newAccessToken = generateAccessToken(user._id);                           // Generate a new access token
+
+        const cookieOptions = {
+                expires: new Date(Date.now() + 15 * 60 * 1000), 
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'Lax',
+            };
+
+        res.cookie('access-token', newAccessToken, cookieOptions);
+    
+        return res.status(200).json({
+            status: "success",
+            message: 'Access token refreshed successfully',
+            accessToken: newAccessToken,
+        });
+    } catch (err) {
+        console.error("Token Verification Error: ", err);
+        return next(new AppError("Refresh token is invalid or has expired", 403));
+    }
+  });
+
 
 // ------------------  -------------------
 // ------------------  -------------------
