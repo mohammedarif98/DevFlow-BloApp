@@ -4,6 +4,8 @@ import OTP from "../models/otpModel.js";
 import AppError from "../utils/appError.js";
 import { generateOTP } from "../utils/generateOTP.js";
 import sendMail from "../utils/sendEmail.js";
+import { generateAccessToken, generateRefreshToken } from "../utils/jwt.js";
+import comparePassword from '../utils/comparePassword.js'; 
 
 
 // --------------- User Registration ----------------
@@ -35,7 +37,7 @@ export const registerUser = catchAsync(async (req, res, next) => {
 
     await sendMail( email, 'OTP For Email Verification', `<h1>Your OTP is: ${otp}</h1>`);
 
-    return res.status(201).json({
+    return res.status( statusCode ).json({
         status: 'success',
         message: 'User registered. OTP sent to email',
     });
@@ -61,9 +63,9 @@ export const verifyOTP = catchAsync( async (req, res, next) => {
     // Clear the OTP data from the database after successful verification
     await OTP.findByIdAndDelete( findOTP._id );
    
-    res.status(200).json({
+    res.status( statusCode ).json({
         status: 'success',
-        message: 'Email verified successfully!',
+        message: 'Email verified and Authenticated successfully!',
     });
 });
 
@@ -99,8 +101,61 @@ export const resendOTP = catchAsync(async (req, res, next) => {
 
     await sendMail(email, 'New OTP for Email Verification', `<h1>Your new OTP is: ${otp}</h1>`);
 
-    res.status(200).json({
+    res.status( statusCode ).json({
         status: 'success',
         message: 'New OTP has been sent to your email.',
     });
 });
+
+
+
+// ------------------ User Login -------------------
+export const loginUser = catchAsync( async (req, res, next) => {
+
+    const { email, password } = req.body;
+    if( !email || !password ) return next( new AppError("Please provide email and password",400));
+
+    // const ExistUser = await User.findOne({ email });
+    // if( !ExistUser ) return next( new AppError("User is not Existed"))
+        
+    const user = await User.findOne({ email }).select('+password');
+    if( !user ) return next( new AppError("User does not exist",404));
+    
+    if ( !user.isVerified ) return next(new AppError("Your email has not been verified. Verify email.", 403));
+
+    const isPasswordCorrect = await comparePassword( password, user.password );
+    if ( !isPasswordCorrect ) return next(new AppError("Invalid credentials", 401));
+
+    const accessToken = generateAccessToken( user._id );
+    const refreshToken =  generateRefreshToken( user._id );
+
+    const accessTokenCookieOptions = {
+        expires: new Date( Date.now() + 15 * 60 * 1000 ), 
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", 
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "Lax", 
+    };
+
+    const refreshTokenCookieOptions = {
+        expires: new Date( Date.now() + 24 * 60 * 60 * 1000 ), 
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "Lax",
+    };
+    
+    res.cookie( "access-token", accessToken , accessTokenCookieOptions );
+    res.cookie( "refresh-token", refreshToken , refreshTokenCookieOptions );
+
+
+    return res.status(200).json({
+        status: "success",
+        message: "Login successful",
+        user: {
+            id: user._id,
+            username: user.username,
+            email: user.email,
+            isVerified: user.isVerified,
+        },
+      });
+    
+})
