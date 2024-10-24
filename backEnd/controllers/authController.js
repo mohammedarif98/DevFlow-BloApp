@@ -37,7 +37,7 @@ export const registerUser = catchAsync(async (req, res, next) => {
 
     await sendMail( email, 'OTP For Email Verification', `<h1>Your OTP is: ${otp}</h1>`);
 
-    return res.status( statusCode ).json({
+    return res.status( 201 ).json({
         status: 'success',
         message: 'User registered. OTP sent to email',
     });
@@ -63,7 +63,7 @@ export const verifyOTP = catchAsync( async (req, res, next) => {
     // Clear the OTP data from the database after successful verification
     await OTP.findByIdAndDelete( findOTP._id );
    
-    res.status( statusCode ).json({
+    res.status( 200 ).json({
         status: 'success',
         message: 'Email verified and Authenticated successfully!',
     });
@@ -101,7 +101,7 @@ export const resendOTP = catchAsync(async (req, res, next) => {
 
     await sendMail(email, 'New OTP for Email Verification', `<h1>Your new OTP is: ${otp}</h1>`);
 
-    res.status( statusCode ).json({
+    res.status( 200 ).json({
         status: 'success',
         message: 'New OTP has been sent to your email.',
     });
@@ -114,9 +114,6 @@ export const loginUser = catchAsync( async (req, res, next) => {
 
     const { email, password } = req.body;
     if( !email || !password ) return next( new AppError("Please provide email and password",400));
-
-    // const ExistUser = await User.findOne({ email });
-    // if( !ExistUser ) return next( new AppError("User is not Existed"))
         
     const user = await User.findOne({ email }).select('+password');
     if( !user ) return next( new AppError("User does not exist",404));
@@ -130,7 +127,8 @@ export const loginUser = catchAsync( async (req, res, next) => {
     const refreshToken =  generateRefreshToken( user._id );
 
     const accessTokenCookieOptions = {
-        expires: new Date( Date.now() + 15 * 60 * 1000 ), 
+        // expires: new Date( Date.now() + 15 * 60 * 1000 ), 
+        expires: new Date(Date.now() + 1 * 60 * 1000), // 1 minute
         httpOnly: true,
         secure: process.env.NODE_ENV === "production", 
         sameSite: process.env.NODE_ENV === "production" ? "none" : "Lax", 
@@ -147,9 +145,11 @@ export const loginUser = catchAsync( async (req, res, next) => {
     res.cookie( "refresh-token", refreshToken , refreshTokenCookieOptions );
 
 
-    return res.status(200).json({
+    return res.status( 200 ).json({
         status: "success",
         message: "Login successful",
+        accessToken,
+        refreshToken,
         user: {
             id: user._id,
             username: user.username,
@@ -159,3 +159,32 @@ export const loginUser = catchAsync( async (req, res, next) => {
       });
     
 })
+
+
+// ------------------ User Logout -------------------
+export const logoutUser = catchAsync(async (req, res, next) => {
+    res.clearCookie("access-token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "Lax",
+    });
+    
+    res.clearCookie("refresh-token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "Lax",
+    });
+
+    return res.status( 200 ).json({
+        status: "success",
+        message: "Logout successful",
+    });
+});
+
+
+// ------------------  -------------------
+
+// ------------------  -------------------
+// ------------------  -------------------
+// ------------------  -------------------
+// ------------------  -------------------
