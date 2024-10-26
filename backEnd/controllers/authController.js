@@ -164,7 +164,6 @@ export const loginUser = catchAsync( async (req, res, next) => {
 
 // ------------------ User Logout -------------------
 export const logoutUser = catchAsync(async (req, res, next) => {
-    console.log("================",req.cookies);
     res.clearCookie("access-token", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -177,7 +176,6 @@ export const logoutUser = catchAsync(async (req, res, next) => {
         sameSite: process.env.NODE_ENV === "production" ? "none" : "Lax",
     });
     
-    console.log("-----------------",req.cookies);
     return res.status( 200 ).json({
         status: "success",
         message: "Logout successful",
